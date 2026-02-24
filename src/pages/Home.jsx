@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import Keyboard from "./Keyboard";
+import Keyboard from "../components/Keyboard";
 
 const useMIDI = () => {
   const [inputs, setInputs] = useState([]);
@@ -45,8 +45,6 @@ const useMIDI = () => {
     }
   }, []);
 
-  // ... rest same
-
   useEffect(() => {
     if (!navigator.requestMIDIAccess) {
       setError("Your browser does not support MIDI.");
@@ -86,11 +84,11 @@ const useMIDI = () => {
   return { inputs, selectedId, setSelectedId, activeNotes, noteHistory, error };
 };
 
-export default function App() {
+export default function Home() {
   const { inputs, selectedId, setSelectedId, activeNotes, noteHistory, error } = useMIDI();
 
   return (
-    <div className="flex flex-col items-center min-h-screen bg-gray-900 text-white p-4">
+    <div className="flex flex-col items-center min-h-[calc(100vh-65px)] bg-gray-900 text-white p-4">
       <h1 className="text-3xl font-bold mt-6 mb-2">Yamaha PSR-E383 MIDI Visualizer</h1>
       <p className="text-gray-400 mb-4">Connect your MIDI keyboard to see it in action</p>
 
