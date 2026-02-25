@@ -9,41 +9,40 @@ export default function Header() {
   };
 
   return (
-    <header className="bg-gray-800 border-b border-gray-700 shadow-lg">
-      <div className="container mx-auto px-4">
-        <div className="flex items-center justify-between h-16">
-          <div className="flex items-center space-x-8">
-            <Link 
-              to="/" 
-              className="text-xl font-bold text-white hover:text-blue-400 transition-colors"
+    <header className="backdrop-blur-md bg-gray-900/70 border-b border-white/10 shadow-2xl transition-all duration-300">
+      <div className="container mx-auto px-6">
+        <div className="flex justify-center items-center h-20">
+          <nav className="hidden md:flex items-center space-x-1">
+            <Link
+              to="/"
+              className={`px-4 py-2 rounded-lg text-lg font-semibold transition-all duration-200 relative group ${isActive('/')
+                ? 'text-white bg-white/10 shadow-sm'
+                : 'text-gray-400 hover:text-white hover:bg-white/5'
+                }`}
             >
-              MIDI Visualizer
+              Home
             </Link>
-            
-            <nav className="flex space-x-6">
-              <Link
-                to="/"
-                className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                  isActive('/')
-                    ? 'bg-blue-600 text-white'
-                    : 'text-gray-300 hover:text-white hover:bg-gray-700'
+
+            <Link
+              to="/player"
+              className={`px-4 py-2 rounded-lg text-lg font-semibold transition-all duration-200 relative group ${isActive('/player')
+                ? 'text-white bg-white/10 shadow-sm'
+                : 'text-gray-400 hover:text-white hover:bg-white/5'
                 }`}
-              >
-                Home
-              </Link>
-              
-              <Link
-                to="/player"
-                className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                  isActive('/player')
-                    ? 'bg-blue-600 text-white'
-                    : 'text-gray-300 hover:text-white hover:bg-gray-700'
+            >
+              MIDI Player
+            </Link>
+
+            <Link
+              to="/practice"
+              className={`px-4 py-2 rounded-lg text-lg font-semibold transition-all duration-200 relative group ${isActive('/practice')
+                ? 'text-white bg-white/10 shadow-sm'
+                : 'text-gray-400 hover:text-white hover:bg-white/5'
                 }`}
-              >
-                MIDI Player
-              </Link>
-            </nav>
-          </div>
+            >
+              Practice
+            </Link>
+          </nav>
         </div>
       </div>
     </header>

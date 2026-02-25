@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import * as Tone from "tone";
 import { Midi } from "@tonejs/midi";
 import Keyboard from "../components/Keyboard";
+import VexFlowSheetMusic from "../components/VexFlowSheetMusic";
 import { BUILT_IN_SONGS } from "../constants/songs";
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
@@ -20,6 +21,10 @@ export default function Player() {
   const [isLoadingSamples, setIsLoadingSamples] = useState(false);
   const [isLoadingMidi, setIsLoadingMidi] = useState(false);
   const [parseError, setParseError] = useState("");
+
+  // Sheet music state
+  const [showSheetMusic] = useState(true);
+  const [currentNoteIndex, setCurrentNoteIndex] = useState(0);
 
   const samplerRef = useRef(null);
   const gainRef = useRef(null);
@@ -129,12 +134,13 @@ export default function Player() {
   const parseMidiArrayBuffer = useCallback((arrayBuffer, nameForUi) => {
     const midi = new Midi(arrayBuffer);
 
-    const collectedNotes = midi.tracks.flatMap((track) =>
+    const collectedNotes = midi.tracks.flatMap((track, trackIndex) =>
       track.notes.map((note) => ({
         ticks: note.ticks,
         durationTicks: note.durationTicks,
         midi: note.midi,
         velocity: note.velocity,
+        track: trackIndex, // Preserve track information
       }))
     );
 
@@ -187,6 +193,7 @@ export default function Player() {
     Tone.Transport.position = 0;
     setPressedNotes([]);
     setIsPlaying(false);
+    setCurrentNoteIndex(0);
   }, [clearScheduled]);
 
   const startPlayback = async (overrides) => {
@@ -218,7 +225,7 @@ export default function Player() {
     const sampler = samplerRef.current;
 
     let maxEndTick = 0;
-    notesToPlay.forEach((note) => {
+    notesToPlay.forEach((note, index) => {
       const noteName = Tone.Frequency(note.midi, "midi").toNote();
       const startTick = `${note.ticks}i`;
       const durationTicks = `${Math.max(1, note.durationTicks)}i`;
@@ -237,6 +244,11 @@ export default function Player() {
           if (prev.includes(note.midi)) return prev;
           return [...prev, note.midi];
         });
+
+        // Update current note index for sheet music
+        if (showSheetMusic) {
+          setCurrentNoteIndex(index);
+        }
       }, startTick);
 
       const noteOffId = Tone.Transport.schedule(() => {
@@ -296,15 +308,10 @@ export default function Player() {
   const volumeLabel = useMemo(() => `${Math.round(clamp(volume, 0, 1) * 100)}%`, [volume]);
 
   return (
-    <div className="flex flex-col items-center min-h-[calc(100vh-65px)] bg-gray-900 text-white p-4">
-      <h1 className="text-3xl font-bold mt-6 mb-1">MIDI File Player</h1>
-      <p className="text-gray-400 mb-6 text-center max-w-xl">
-        Upload a MIDI file and watch it play on the virtual piano keyboard.
-      </p>
-
-      <div className="flex gap-6 items-start">
-        {/* Built-in songs column */}
-        <div className="w-64 bg-gray-800 border border-gray-700 rounded-2xl p-6 shadow-xl">
+    <div className="flex flex-col items-center min-h-[calc(100vh-81px)] bg-gray-900 text-white p-4">
+      <div className="flex gap-6 justify-center w-full">
+        {/* Built-in songs sidebar */}
+        <div className="w-128 bg-gray-800 border border-gray-700 rounded-2xl p-6 shadow-xl">
           <div className="text-sm font-semibold text-gray-300 mb-3">Built-in songs</div>
           <div className="flex flex-wrap gap-2">
             {BUILT_IN_SONGS.map((song) => (
@@ -314,163 +321,170 @@ export default function Player() {
                 onClick={() => loadAndPlayBuiltIn(song)}
                 disabled={isLoadingMidi || isLoadingSamples}
                 className={`px-3 py-2 rounded-full text-sm font-semibold shadow-md transition
-                  ${
-                    !isLoadingMidi && !isLoadingSamples
-                      ? "bg-indigo-600 hover:bg-indigo-500 text-white"
-                      : "bg-gray-700 text-gray-500 cursor-not-allowed"
+                  ${!isLoadingMidi && !isLoadingSamples
+                    ? "bg-indigo-600 hover:bg-indigo-500 text-white"
+                    : "bg-gray-700 text-gray-500 cursor-not-allowed"
                   }`}
               >
                 {song.label}
               </button>
             ))}
           </div>
+
+          <div className="mt-6">
+            {/* File upload section inside sidebar to match Practice page */}
+            <div className="bg-gray-800/50 border border-gray-700/50 rounded-xl p-4">
+              <div className="flex flex-col gap-4">
+                <div className="flex flex-col gap-2">
+                  <label
+                    htmlFor="midi-file"
+                    className="text-sm font-semibold text-gray-300"
+                  >
+                    MIDI file
+                  </label>
+                  <input
+                    id="midi-file"
+                    type="file"
+                    accept=".mid,.midi"
+                    onChange={handleFileChange}
+                    className="block text-sm text-gray-300
+                      file:mr-4 file:py-2 file:px-4
+                      file:rounded-full file:border-0
+                      file:text-sm file:font-semibold
+                      file:bg-blue-600 file:text-white
+                      hover:file:bg-blue-500
+                      cursor-pointer"
+                  />
+                  <span className="text-xs text-gray-500">
+                    Supported formats: .mid, .midi
+                  </span>
+                  {parseError ? (
+                    <span className="text-xs text-red-400 font-semibold">
+                      {parseError}
+                    </span>
+                  ) : null}
+                </div>
+
+                {/* File info */}
+                {fileName && (
+                  <div className="flex flex-col gap-1 text-sm text-gray-400">
+                    <div>
+                      <span className="font-semibold text-gray-300">Notes: </span>
+                      {notes.length}
+                    </div>
+                    <div>
+                      <span className="font-semibold text-gray-300">Duration: </span>
+                      {durationSecondsAtSourceTempo
+                        ? `${durationSecondsAtSourceTempo.toFixed(1)} s`
+                        : "—"}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
 
-        {/* Original card */}
-        <div className="w-full max-w-2xl bg-gray-800 border border-gray-700 rounded-2xl p-6 shadow-xl mb-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-            <div className="flex flex-col gap-3">
-              <div className="flex flex-col gap-2">
-                <label
-                  htmlFor="midi-file"
-                  className="text-sm font-semibold text-gray-300"
-                >
-                  MIDI file
-                </label>
-                <input
-                  id="midi-file"
-                  type="file"
-                  accept=".mid,.midi"
-                  onChange={handleFileChange}
-                  className="block text-sm text-gray-300
-                    file:mr-4 file:py-2 file:px-4
-                    file:rounded-full file:border-0
-                    file:text-sm file:font-semibold
-                    file:bg-blue-600 file:text-white
-                    hover:file:bg-blue-500
-                    cursor-pointer"
-                />
-                <span className="text-xs text-gray-500">
-                  Supported formats: .mid, .midi
-                </span>
-                {parseError ? (
-                  <span className="text-xs text-red-400 font-semibold">
-                    {parseError}
-                  </span>
-                ) : null}
-              </div>
-
-              <div className="flex items-center gap-3">
+        <div className="flex-1 space-y-6">
+          <div className="w-full bg-gray-800 border border-gray-700 rounded-2xl p-6 shadow-xl">
+            <div className="flex flex-col gap-6">
+              {/* Playback Controls */}
+              <div className="flex items-center gap-4">
                 <button
                   type="button"
                   onClick={startPlayback}
                   disabled={!canPlay || isLoadingSamples}
-                  className={`px-4 py-2 rounded-full text-sm font-semibold shadow-md transition
-                    ${
-                      canPlay && !isLoadingSamples
-                        ? "bg-green-500 hover:bg-green-400 text-white"
-                        : "bg-gray-700 text-gray-500 cursor-not-allowed"
+                  className={`px-6 py-2 rounded-full text-base font-bold shadow-md transition flex-1
+                    ${canPlay && !isLoadingSamples
+                      ? "bg-green-500 hover:bg-green-400 text-white"
+                      : "bg-gray-700 text-gray-500 cursor-not-allowed"
                     }`}
                 >
-                  {isLoadingSamples ? "Loading…" : "Play"}
+                  {isLoadingSamples ? "Loading samples…" : isPlaying ? "Playing..." : "Play MIDI"}
                 </button>
                 <button
                   type="button"
                   onClick={stopPlayback}
                   disabled={!isPlaying && !pressedNotes.length}
-                  className={`px-4 py-2 rounded-full text-sm font-semibold shadow-md transition
-                    ${
-                      isPlaying || pressedNotes.length
-                        ? "bg-red-500 hover:bg-red-400 text-white"
-                        : "bg-gray-700 text-gray-500 cursor-not-allowed"
+                  className={`px-6 py-2 rounded-full text-base font-bold shadow-md transition
+                    ${isPlaying || pressedNotes.length
+                      ? "bg-red-500 hover:bg-red-400 text-white"
+                      : "bg-gray-700 text-gray-500 cursor-not-allowed"
                     }`}
                 >
                   Stop
                 </button>
               </div>
-            </div>
 
-            <div className="flex flex-col gap-1 text-sm text-gray-400">
-              <div>
-                <span className="font-semibold text-gray-300">Selected file: </span>
-                {fileName || "None"}
+              {/* Status Info */}
+              <div className="grid grid-cols-3 gap-4 text-sm text-gray-400 border-t border-gray-700 pt-4">
+                <div>
+                  <span className="font-semibold text-gray-300">Selected file: </span>
+                  {fileName}
+                </div>
+                <div>
+                  <span className="font-semibold text-gray-300">Source BPM: </span>
+                  {sourceBpm ? `${Math.round(sourceBpm)}` : "—"}
+                </div>
+                <div>
+                  <span className="font-semibold text-gray-300">Audio: </span>
+                  {isAudioReady ? (
+                    <span className="text-green-400 font-medium">Ready</span>
+                  ) : (
+                    <span className="text-yellow-400">Click Play to enable audio</span>
+                  )}
+                </div>
               </div>
-              <div>
-                <span className="font-semibold text-gray-300">File BPM: </span>
-                {sourceBpm ? `${Math.round(sourceBpm)}` : "—"}
-              </div>
-              <div>
-                <span className="font-semibold text-gray-300">Notes: </span>
-                {notes.length}
-              </div>
-              <div>
-                <span className="font-semibold text-gray-300">Duration: </span>
-                {durationSecondsAtSourceTempo
-                  ? `${durationSecondsAtSourceTempo.toFixed(1)} s`
-                  : "—"}
-              </div>
-              <div>
-                <span className="font-semibold text-gray-300">Audio: </span>
-                {isAudioReady ? "Ready" : "Click Play to enable"}
-              </div>
-            </div>
-          </div>
 
-          <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="bg-gray-900/30 border border-gray-700 rounded-xl p-4">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-semibold text-gray-300">Volume</span>
-                <span className="text-xs text-gray-400">{volumeLabel}</span>
-              </div>
-              <input
-                type="range"
-                min="0"
-                max="1"
-                step="0.01"
-                value={volume}
-                onChange={(e) => setVolume(Number(e.target.value))}
-                className="w-full"
-              />
-            </div>
+              {/* Sliders */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 border-t border-gray-700 pt-6">
+                <div className="bg-gray-900/30 border border-gray-700 rounded-xl p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-sm font-semibold text-gray-300">Playback Volume</span>
+                    <span className="text-xs text-gray-400 font-mono bg-gray-800 px-2 py-0.5 rounded">{volumeLabel}</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.01"
+                    value={volume}
+                    onChange={(e) => setVolume(Number(e.target.value))}
+                    className="w-full accent-blue-500"
+                  />
+                </div>
 
-            <div className="bg-gray-900/30 border border-gray-700 rounded-xl p-4">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-semibold text-gray-300">BPM</span>
-                <span className="text-xs text-gray-400">{bpmLabel}</span>
-              </div>
-              <input
-                type="range"
-                min="30"
-                max="240"
-                step="1"
-                value={bpmLabel}
-                onChange={(e) => {
-                  const next = Number(e.target.value);
-                  setBpm(next);
-                  Tone.Transport.bpm.value = next;
-                }}
-                className="w-full"
-              />
-              <div className="mt-2 flex items-center gap-2">
-                <input
-                  type="number"
-                  min="30"
-                  max="240"
-                  value={bpmLabel}
-                  onChange={(e) => {
-                    const next = clamp(Number(e.target.value), 30, 240);
-                    setBpm(next);
-                    Tone.Transport.bpm.value = next;
-                  }}
-                  className="w-28 bg-gray-800 border border-gray-700 rounded-lg px-3 py-1 text-sm text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-                <span className="text-xs text-gray-500">
-                  Changes apply immediately while playing.
-                </span>
+                <div className="bg-gray-900/30 border border-gray-700 rounded-xl p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-sm font-semibold text-gray-300">Playback Tempo (BPM)</span>
+                    <span className="text-xs text-gray-400 font-mono bg-gray-800 px-2 py-0.5 rounded">{bpmLabel}</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="30"
+                    max="240"
+                    step="1"
+                    value={bpmLabel}
+                    onChange={(e) => {
+                      const next = Number(e.target.value);
+                      setBpm(next);
+                      Tone.Transport.bpm.value = next;
+                    }}
+                    className="w-full accent-indigo-500"
+                  />
+                </div>
               </div>
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Sheet Music inside the main content area */}
+      <div className="my-6 w-full">
+        <VexFlowSheetMusic
+          notes={notes}
+          currentNoteIndex={currentNoteIndex}
+        />
       </div>
 
       <div className="mt-auto mb-12 w-full overflow-x-auto pb-4">
